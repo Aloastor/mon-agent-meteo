@@ -24,4 +24,6 @@ jobs:
         run: pip install requests matplotlib numpy pytz
 
       - name: Exécuter l'agent météo
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python meteo.py
