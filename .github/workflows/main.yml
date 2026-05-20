@@ -1,0 +1,27 @@
+name: Envoi Bulletin Meteo
+
+on:
+  schedule:
+    # L'heure de GitHub est en UTC (Heure de Londres/Greenwich)
+    # 05:30 UTC = 07:30 à Paris
+    # 18:00 UTC = 20:00 à Paris
+    - cron: '30 5 * * *'
+    - cron: '0 18 * * *'
+
+jobs:
+  run-meteo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v3
+
+      - name: Installer Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Installer les dépendances
+        run: pip install requests matplotlib numpy pytz
+
+      - name: Exécuter l'agent météo
+        run: python meteo.py
