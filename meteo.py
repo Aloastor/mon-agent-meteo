@@ -105,8 +105,8 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         print(f"❌ Erreur : {str(e)}")
 
 # --- CONFIGURATION (Mets tes infos ici) ---
-TOKEN = "8383268096:AAGsniGMMjfyNxyE1c6m3J1o6yAc9J2W6YI"
-CHAT_ID = "1676422546"
+TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 VILLE_CIBLE = "Meudon"
 
 generer_et_envoyer_meteo(VILLE_CIBLE, TOKEN, CHAT_ID)
