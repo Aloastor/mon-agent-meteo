@@ -1,16 +1,14 @@
 name: Envoi Bulletin Meteo
 
 on:
+  workflow_dispatch:
   schedule:
-    # L'heure de GitHub est en UTC (Heure de Londres/Greenwich)
-    # 05:30 UTC = 07:30 à Paris
-    # 18:00 UTC = 20:00 à Paris
     - cron: '30 5 * * *'
-    - cron: '0 18 * * *'
 
 jobs:
   run-meteo:
     runs-on: ubuntu-latest
+
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v3
@@ -29,5 +27,3 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CITY_ID: ${{ secrets.CITY_ID }}
         run: python meteo.py
-
-        
