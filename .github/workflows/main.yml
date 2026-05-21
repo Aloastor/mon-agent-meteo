@@ -27,5 +27,5 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_CHAT_ID: ${{ secrets.CITY_ID }}
+          CITY_ID: ${{ secrets.CITY_ID }}
         run: python meteo.py
