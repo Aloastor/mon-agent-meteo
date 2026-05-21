@@ -49,10 +49,11 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         
         x = np.arange(len(heures_labels))
         
-        # 2. Graphique
-        fig, (ax0, ax1, ax2) = plt.subplots(3, 1, figsize=(14, 11), gridspec_kw={'height_ratios': [0.8, 2, 1.2]}, dpi=120)
+        # 2. Graphique Optimisé (On passe de 3 à 2 blocs verticaux)
+        fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={'height_ratios': [0.8, 2.5]}, dpi=120)
         fig.patch.set_facecolor('#ffffff')
         
+        # --- BLOC 0 : VENT ET ÉTAT DU CIEL ---
         ax0.set_facecolor('#f1f5f9')
         ax0.set_xlim(-0.5, len(heures_labels) - 0.5)
         ax0.set_ylim(0, 10)
@@ -62,46 +63,49 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
             fleche = degres_en_fleche(vent_direction[i])
             label_meteo = determiner_picto_texte(probas_pluie[i], temperatures[i])
             
-            # Affichage de l'heure
             ax0.text(x[i], 8.0, heures_labels[i], ha='center', va='center', fontsize=10, fontweight='bold', color='#2c3e50')
-            # Affichage du type de temps (Alternative aux Emojis qui cassent sous Linux)
             ax0.text(x[i], 5.5, label_meteo, ha='center', va='center', fontsize=8.5, color='#0abde3', fontweight='bold')
-            # Affichage du vent
             ax0.text(x[i], 2.2, f"{fleche}\n{round(vent_vitesse[i])} km/h", ha='center', va='center', fontsize=9, color='#4b6584', fontweight='semibold', bbox=dict(boxstyle='circle,pad=0.2', facecolor='#ffffff', edgecolor='#cbd5e1', lw=1))
 
+        # --- BLOC 1 FUSIONNÉ : TEMPÉRATURES + PRÉCIPITATIONS ---
         ax1.set_facecolor('#f8f9fa')
-        ax1.plot(x, temperatures, color='#ff4d4d', linewidth=2.5, label='Température (°C)', marker='o', markersize=4)
-        ax1.plot(x, ressenties, color='#ff9f43', linewidth=1.5, linestyle='--', label='Ressentie (°C)')
+        
+        # En arrière-plan : Les barres de pluie (axe de droite pour ne pas mélanger les degrés et les mm)
+        ax1_pluie = ax1.twinx()
+        barres_pluie = ax1_pluie.bar(x, hauteur_pluie, color='#74b9ff', alpha=0.4, width=0.5, label='Pluie (mm)')
+        ax1_pluie.set_ylabel('Précipitations (mm)', color='#0984e3', fontweight='bold')
+        ax1_pluie.set_ylim(0, max(max(hauteur_pluie) + 1.0, 3)) # Hauteur min de 3mm pour garder du ciel sur le graphique
+        
+        # Affichage des probabilités et mm au-dessus des barres de pluie
+        for i in range(len(probas_pluie)):
+            if probas_pluie[i] > 0:
+                texte_pluie = f"{probas_pluie[i]}%"
+                if hauteur_pluie[i] > 0:
+                    texte_pluie += f"\n({hauteur_pluie[i]}mm)"
+                ax1_pluie.text(x[i], hauteur_pluie[i] + 0.1, texte_pluie, ha='center', va='bottom', fontsize=8, color='#1e3799', fontweight='bold')
+
+        # En premier plan : Les courbes de température (axe de gauche)
+        l1 = ax1.plot(x, temperatures, color='#ff4d4d', linewidth=2.5, label='Température (°C)', marker='o', markersize=4)
+        l2 = ax1.plot(x, ressenties, color='#ff9f43', linewidth=1.5, linestyle='--', label='Ressentie (°C)')
         ax1.set_ylabel('Température (°C)', color='#ff4d4d', fontweight='bold')
         ax1.grid(True, linestyle=':', alpha=0.6, color='#cccccc')
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(heures_labels, fontsize=10, color='#4a5568')
         
+        # Annotations des températures directement sur la courbe
         for i in range(len(temperatures)):
             ax1.annotate(f"{round(temperatures[i],1)}°", (x[i], temperatures[i]), textcoords="offset points", xytext=(0,8), ha='center', fontsize=9, color='#cc0000', fontweight='bold')
         
-        ax1.legend(loc='upper right')
+        # Configuration des axes de temps
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(heures_labels, fontsize=10, color='#4a5568')
+        ax1.set_xlim(-0.5, len(heures_labels) - 0.5)
+        
+        # Légende unique combinée
+        lignes = l1 + l2 + [barres_pluie]
+        labels = [l.get_label() for l in lignes]
+        ax1.legend(lignes, labels, loc='upper right')
+        
         ax1.set_title(f"BULLETIN HORAIRE — {nom_complet.upper()}", fontsize=13, fontweight='bold', pad=15, color='#2c3e50', loc='left')
 
-        ax2.set_facecolor('#f1f5f9')
-        ax2.bar(x, probas_pluie, color='#74b9ff', alpha=0.4, width=0.7)
-        ax2.set_ylabel('Probabilité Pluie (%)', color='#0984e3', fontweight='bold')
-        ax2.set_ylim(0, 110)
-        ax2.grid(True, axis='y', linestyle=':')
-        
-        ax2_mm = ax2.twinx()
-        ax2_mm.set_ylabel('Précipitations (mm)', color='#2e5bff', fontweight='bold')
-        ax2_mm.bar(x, hauteur_pluie, color='#2e5bff', alpha=0.7, width=0.3)
-        ax2_mm.set_ylim(0, max(max(hauteur_pluie) + 0.5, 2)) 
-        
-        for i in range(len(probas_pluie)):
-            if probas_pluie[i] > 0:
-                texte_pluie = f"{probas_pluie[i]}%\n({hauteur_pluie[i]}mm)" if hauteur_pluie[i] > 0 else f"{probas_pluie[i]}%"
-                ax2.text(x[i], probas_pluie[i] + 3, texte_pluie, ha='center', va='bottom', fontsize=8, color='#1e3799', fontweight='bold')
-
-        ax2.set_xticks(x)
-        ax2.set_xticklabels(heures_labels, fontsize=10, color='#4a5568')
-        
         fig.tight_layout()
         
         # Sauvegarde temporaire de l'image
@@ -109,7 +113,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         plt.savefig(chemin_image, bbox_inches='tight')
         plt.close()
 
-        # 3. Préparation du message Telegram avec emojis
+        # 3. Préparation du message Telegram
         max_temp = max(temperatures)
         min_temp = min(temperatures)
         global_rain = "🌧️ Risque de pluie à prévoir" if max(probas_pluie) > 30 else "☀️ Journée globalement sèche"
@@ -126,7 +130,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         with open(chemin_image, 'rb') as photo:
             requests.post(url_telegram, data={
                 'chat_id': telegram_chat_id, 
-                'caption': texte_telegram,
+                'caption': text_telegram,
                 'parse_mode': 'Markdown'
             }, files={'photo': photo})
             
@@ -137,7 +141,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
     except Exception as e:
         print(f"❌ Erreur : {str(e)}")
 
-# --- CONFIGURATION (Mets tes infos ici) ---
+# --- CONFIGURATION ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 VILLE_CIBLE = os.environ.get("CITY_ID")
