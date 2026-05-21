@@ -3,7 +3,8 @@ name: Envoi Bulletin Meteo
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 5 * * *'
+    - cron: '30 5 * * *'  # Matin : 7h30 à Paris
+    - cron: '0 18 * * *'  # Soir : 20h00 à Paris
 
 jobs:
   run-meteo:
@@ -11,10 +12,10 @@ jobs:
 
     steps:
       - name: Récupérer le code
-        uses: actions/checkout@v4  # <--- Mis à jour de v3 à v4
+        uses: actions/checkout@v4
 
       - name: Installer Python
-        uses: actions/setup-python@v5  # <--- Mis à jour de v4 à v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
