@@ -29,3 +29,5 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CITY_ID: ${{ secrets.CITY_ID }}
         run: python meteo.py
+
+        
