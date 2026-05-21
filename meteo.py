@@ -10,6 +10,17 @@ def degres_en_fleche(degres: float) -> str:
     index = int((degres + 22.5) / 45) % 8
     return ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"][index]
 
+def determiner_picto_texte(proba_pluie: int, temperature: float) -> str:
+    """Génère un indicateur météo textuel compatible avec GitHub Linux"""
+    if proba_pluie > 50:
+        return "[Pluie]" if temperature > 3 else "[Neige]"
+    elif proba_pluie > 20:
+        return "[Nuage/Pluie]"
+    elif temperature > 22:
+        return "[Soleil]"
+    else:
+        return "[Nuageux]"
+
 def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: str):
     try:
         # 1. Données Météo
@@ -39,7 +50,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         x = np.arange(len(heures_labels))
         
         # 2. Graphique
-        fig, (ax0, ax1, ax2) = plt.subplots(3, 1, figsize=(14, 10), gridspec_kw={'height_ratios': [0.6, 2, 1.2]}, dpi=120)
+        fig, (ax0, ax1, ax2) = plt.subplots(3, 1, figsize=(14, 11), gridspec_kw={'height_ratios': [0.8, 2, 1.2]}, dpi=120)
         fig.patch.set_facecolor('#ffffff')
         
         ax0.set_facecolor('#f1f5f9')
@@ -49,8 +60,14 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
             
         for i in range(len(heures_labels)):
             fleche = degres_en_fleche(vent_direction[i])
-            ax0.text(x[i], 7.5, heures_labels[i], ha='center', va='center', fontsize=10, fontweight='bold', color='#2c3e50')
-            ax0.text(x[i], 3.0, f"{fleche}\n{round(vent_vitesse[i])} km/h", ha='center', va='center', fontsize=9, color='#4b6584', fontweight='semibold', bbox=dict(boxstyle='circle,pad=0.2', facecolor='#ffffff', edgecolor='#cbd5e1', lw=1))
+            label_meteo = determiner_picto_texte(probas_pluie[i], temperatures[i])
+            
+            # Affichage de l'heure
+            ax0.text(x[i], 8.0, heures_labels[i], ha='center', va='center', fontsize=10, fontweight='bold', color='#2c3e50')
+            # Affichage du type de temps (Alternative aux Emojis qui cassent sous Linux)
+            ax0.text(x[i], 5.5, label_meteo, ha='center', va='center', fontsize=8.5, color='#0abde3', fontweight='bold')
+            # Affichage du vent
+            ax0.text(x[i], 2.2, f"{fleche}\n{round(vent_vitesse[i])} km/h", ha='center', va='center', fontsize=9, color='#4b6584', fontweight='semibold', bbox=dict(boxstyle='circle,pad=0.2', facecolor='#ffffff', edgecolor='#cbd5e1', lw=1))
 
         ax1.set_facecolor('#f8f9fa')
         ax1.plot(x, temperatures, color='#ff4d4d', linewidth=2.5, label='Température (°C)', marker='o', markersize=4)
@@ -92,10 +109,26 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         plt.savefig(chemin_image, bbox_inches='tight')
         plt.close()
 
-        # 3. Envoi sur Telegram
+        # 3. Préparation du message Telegram avec emojis
+        max_temp = max(temperatures)
+        min_temp = min(temperatures)
+        global_rain = "🌧️ Risque de pluie à prévoir" if max(probas_pluie) > 30 else "☀️ Journée globalement sèche"
+        
+        texte_telegram = (
+            f"📊 *BULLETIN MÉTÉO - {nom_complet}*\n\n"
+            f"🌡️ Températures : Min {round(min_temp,1)}°C / Max {round(max_temp,1)}°C\n"
+            f"☁️ Tendance : {global_rain}\n\n"
+            f"👇 Découvre ton graphique horaire complet ci-dessous !"
+        )
+
+        # Envoi sur Telegram
         url_telegram = f"https://api.telegram.org/bot{telegram_token}/sendPhoto"
         with open(chemin_image, 'rb') as photo:
-            requests.post(url_telegram, data={'chat_id': telegram_chat_id, 'caption': f"📊 Voici ton bulletin météo pour {nom_complet} !"}, files={'photo': photo})
+            requests.post(url_telegram, data={
+                'chat_id': telegram_chat_id, 
+                'caption': texte_telegram,
+                'parse_mode': 'Markdown'
+            }, files={'photo': photo})
             
         # Nettoyage
         os.remove(chemin_image)
@@ -110,4 +143,3 @@ CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 VILLE_CIBLE = os.environ.get("CITY_ID")
 
 generer_et_envoyer_meteo(VILLE_CIBLE, TOKEN, CHAT_ID)
-
