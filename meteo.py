@@ -110,3 +110,4 @@ CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 VILLE_CIBLE = os.environ.get("CITY_ID")
 
 generer_et_envoyer_meteo(VILLE_CIBLE, TOKEN, CHAT_ID)
+
