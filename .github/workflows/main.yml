@@ -3,8 +3,8 @@ name: Envoi Bulletin Meteo
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 5 * * *'  # Matin : 7h30 à Paris
-    - cron: '0 18 * * *'  # Soir : 20h00 à Paris
+    - cron: '25 3 * * *'  # Matin : ~5h25 UTC soit 7h25 à Paris (Heure d'été, sans bouchons !)
+    - cron: '40 17 * * *' # Soir : ~17h40 UTC soit 19h40 à Paris (Prêt pour le point du soir)
 
 jobs:
   run-meteo:
@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Récupérer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # Version à jour (Node 24)
 
       - name: Installer Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5  # Version à jour (Node 24)
         with:
           python-version: '3.10'
 
