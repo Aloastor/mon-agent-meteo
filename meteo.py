@@ -32,7 +32,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         lat, lon = geo_res['results'][0]['latitude'], geo_res['results'][0]['longitude']
         nom_complet = geo_res['results'][0]['name']
         
-        # URL optimisée : Modèle standard (JMA/ECMWF fusionné) + Modèle Allemand ICON Global
+        # URL optimisée : Modèle standard + Modèle Allemand ICON Global
         url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
                f"&hourly=temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,temperature_2m_icon_global"
                f"&forecast_days=2&timezone=auto")
@@ -52,19 +52,16 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         temp_standard = res['hourly']['temperature_2m'][idx_depart:fin]
         temp_icon = res['hourly']['temperature_2m_icon_global'][idx_depart:fin]
         
-        # Remplacement des None éventuels pour éviter le crash de calcul
         temp_standard = [t if t is not None else 15.0 for t in temp_standard]
         temp_icon = [t if t is not None else temp_standard[i] for i, t in enumerate(temp_icon)]
         
-        # Passage en table multimédias pour l'Option B
         matrice_temps = np.array([temp_standard, temp_icon])
         temperatures_moyennes = np.mean(matrice_temps, axis=0)
         
-        # Pour une zone d'incertitude graphique élégante et visible (minimum 0.4°C d'écart visuel)
+        # Écart visuel pour la zone d'incertitude
         temperatures_max = np.maximum(np.max(matrice_temps, axis=0), temperatures_moyennes + 0.4)
         temperatures_min = np.minimum(np.min(matrice_temps, axis=0), temperatures_moyennes - 0.4)
         
-        # Extraction des autres données avec sécurisation des None
         probas_pluie = [p if p is not None else 0 for p in res['hourly']['precipitation_probability'][idx_depart:fin]]
         hauteur_pluie = [p if p is not None else 0.0 for p in res['hourly']['precipitation'][idx_depart:fin]]
         vent_vitesse = [v if v is not None else 0 for v in res['hourly']['wind_speed_10m'][idx_depart:fin]]
@@ -73,11 +70,11 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         
         x = np.arange(len(heures_labels))
         
-        # 2. Construction de l'image (2 blocs verticaux)
+        # 2. Construction de l'image
         fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={'height_ratios': [0.8, 2.5]}, dpi=120)
         fig.patch.set_facecolor('#ffffff')
         
-        # --- BLOC 0 : BANDEAU DU VENT ET ÉTAT DU CIEL ---
+        # --- BLOC 0 : VENT ET CIEL ---
         ax0.set_facecolor('#f1f5f9')
         ax0.set_xlim(-0.5, len(heures_labels) - 0.5)
         ax0.set_ylim(0, 10)
@@ -93,7 +90,6 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         # --- BLOC 1 : TEMPÉRATURES & PRÉCIPITATIONS ---
         ax1.set_facecolor('#f8f9fa')
         
-        # Graphique des précipitations en arrière-plan
         ax1_pluie = ax1.twinx()
         barres_pluie = ax1_pluie.bar(x, hauteur_pluie, color='#74b9ff', alpha=0.35, width=0.5, label='Pluie (mm)')
         ax1_pluie.set_ylabel('Précipitations (mm)', color='#0984e3', fontweight='bold')
@@ -106,10 +102,9 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
                 if hauteur_pluie[i] > 0: texte_pluie += f"\n({hauteur_pluie[i]}mm)"
                 ax1_pluie.text(x[i], hauteur_pluie[i] + 0.1, texte_pluie, ha='center', va='bottom', fontsize=8, color='#1e3799', fontweight='bold')
 
-        # Zone d'incertitude ombrée (Option B)
+        # Zone d'incertitude ombrée
         ax1.fill_between(x, temperatures_min, temperatures_max, color='#ff4d4d', alpha=0.15, label="Marge d'incertitude des modèles")
         
-        # Courbe de la température moyenne
         l1 = ax1.plot(x, temperatures_moyennes, color='#ff4d4d', linewidth=2.5, label='Température Moyenne (°C)', marker='o', markersize=5)
         ax1.set_ylabel('Température (°C)', color='#ff4d4d', fontweight='bold')
         ax1.grid(True, linestyle=':', alpha=0.6, color='#cccccc')
@@ -147,7 +142,8 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
 
         url_telegram = f"https://api.telegram.org/bot{telegram_token}/sendPhoto"
         with open(chemin_image, 'rb') as photo:
-            requests.post(url_telegram, data={'chat_id': telegram_chat_id, 'caption': texte_telegram}, files={'photo': photo})
+            response = requests.post(url_telegram, data={'chat_id': telegram_chat_id, 'caption': texte_telegram}, files={'photo': photo})
+            print(f"👉 Statut Telegram : {response.status_code} - {response.text}")
             
         os.remove(chemin_image)
         print("✅ Script multi-modèles terminé avec succès !")
