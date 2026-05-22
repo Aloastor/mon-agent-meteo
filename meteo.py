@@ -32,11 +32,10 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         lat, lon = geo_res['results'][0]['latitude'], geo_res['results'][0]['longitude']
         nom_complet = geo_res['results'][0]['name']
         
-        # L'URL correcte pour le multi-modèles : on demande la variable 'temperature_2m' 
-        # et l'API va nous renvoyer automatiquement 'temperature_2m_ecmwf_ifs' et 'temperature_2m_icon_global'
+        # URL Standard de base (Ultra stable, une seule source)
         url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
                f"&hourly=temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m"
-               f"&models=ecmwf_ifs,icon_global&timezone=auto")
+               f"&forecast_days=2&timezone=auto")
         res = requests.get(url, timeout=5).json()
         
         if 'hourly' not in res:
@@ -49,23 +48,8 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         nb_heures = 18
         fin = idx_depart + nb_heures
         
-        # Récupération des clés générées proprement par l'API pour chaque modèle
-        temp_ecmwf = res['hourly'].get('temperature_2m_ecmwf_ifs', res['hourly']['temperature_2m'])[idx_depart:fin]
-        temp_icon = res['hourly'].get('temperature_2m_icon_global', res['hourly']['temperature_2m'])[idx_depart:fin]
-        
-        # Nettoyage des None pour la sécurité des calculs
-        temp_ecmwf = [t if t is not None else 15.0 for t in temp_ecmwf]
-        temp_icon = [t if t is not None else temp_ecmwf[i] for i, t in enumerate(temp_icon)]
-        
-        # Calculs thermiques pour la zone d'incertitude
-        matrice_temps = np.array([temp_ecmwf, temp_icon])
-        temperatures_moyennes = np.mean(matrice_temps, axis=0)
-        
-        # Écart visuel pour que le halo rouge soit toujours visible et élégant
-        temperatures_max = np.maximum(np.max(matrice_temps, axis=0), temperatures_moyennes + 0.4)
-        temperatures_min = np.minimum(np.min(matrice_temps, axis=0), temperatures_moyennes - 0.4)
-        
-        # Extraction des autres données communes
+        # Extraction et nettoyage des données (Zéro risque de KeyError ici)
+        temperatures = [t if t is not None else 15.0 for t in res['hourly']['temperature_2m'][idx_depart:fin]]
         probas_pluie = [p if p is not None else 0 for p in res['hourly']['precipitation_probability'][idx_depart:fin]]
         hauteur_pluie = [p if p is not None else 0.0 for p in res['hourly']['precipitation'][idx_depart:fin]]
         vent_vitesse = [v if v is not None else 0 for v in res['hourly']['wind_speed_10m'][idx_depart:fin]]
@@ -74,7 +58,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         
         x = np.arange(len(heures_labels))
         
-        # 2. Dessin du Graphique
+        # 2. Dessin du Graphique Épuré
         fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={'height_ratios': [0.8, 2.5]}, dpi=120)
         fig.patch.set_facecolor('#ffffff')
         
@@ -86,7 +70,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
             
         for i in range(len(heures_labels)):
             fleche = degres_en_fleche(vent_direction[i])
-            label_meteo = determiner_picto_texte(probas_pluie[i], temperatures_moyennes[i])
+            label_meteo = determiner_picto_texte(probas_pluie[i], temperatures[i])
             ax0.text(x[i], 8.0, heures_labels[i], ha='center', va='center', fontsize=10, fontweight='bold', color='#2c3e50')
             ax0.text(x[i], 5.5, label_meteo, ha='center', va='center', fontsize=8.5, color='#0abde3', fontweight='bold')
             ax0.text(x[i], 2.2, f"{fleche}\n{round(vent_vitesse[i])} km/h", ha='center', va='center', fontsize=9, color='#4b6584', fontweight='semibold', bbox=dict(boxstyle='circle,pad=0.2', facecolor='#ffffff', edgecolor='#cbd5e1', lw=1))
@@ -106,15 +90,13 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
                 if hauteur_pluie[i] > 0: texte_pluie += f"\n({hauteur_pluie[i]}mm)"
                 ax1_pluie.text(x[i], hauteur_pluie[i] + 0.1, texte_pluie, ha='center', va='bottom', fontsize=8, color='#1e3799', fontweight='bold')
 
-        # Zone d'incertitude ombrée (Option B)
-        ax1.fill_between(x, temperatures_min, temperatures_max, color='#ff4d4d', alpha=0.15, label="Marge d'incertitude des modèles")
-        
-        l1 = ax1.plot(x, temperatures_moyennes, color='#ff4d4d', linewidth=2.5, label='Température Moyenne (°C)', marker='o', markersize=5)
+        # Courbe classique
+        l1 = ax1.plot(x, temperatures, color='#ff4d4d', linewidth=2.5, label='Température (°C)', marker='o', markersize=5)
         ax1.set_ylabel('Température (°C)', color='#ff4d4d', fontweight='bold')
         ax1.grid(True, linestyle=':', alpha=0.6, color='#cccccc')
         
-        for i in range(len(temperatures_moyennes)):
-            ax1.annotate(f"{round(temperatures_moyennes[i],1)}°", (x[i], temperatures_moyennes[i]), textcoords="offset points", xytext=(0,8), ha='center', fontsize=9, color='#cc0000', fontweight='bold')
+        for i in range(len(temperatures)):
+            ax1.annotate(f"{round(temperatures[i],1)}°", (x[i], temperatures[i]), textcoords="offset points", xytext=(0,8), ha='center', fontsize=9, color='#cc0000', fontweight='bold')
         
         ax1.set_xticks(x)
         ax1.set_xticklabels(heures_labels, fontsize=10, color='#4a5568')
@@ -122,26 +104,25 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
         
         lignes = l1 + [barres_pluie]
         labels = [l.get_label() for l in lignes]
-        labels.append("Marge d'incertitude (ECMWF/ICON)")
         ax1.legend(lignes, labels, loc='upper right')
         
-        ax1.set_title(f"BULLETIN COMPOSITE — {nom_complet.upper()} (Consensus Multi-Modèles)", fontsize=12, fontweight='bold', pad=15, color='#2c3e50', loc='left')
+        ax1.set_title(f"BULLETIN METEO — {nom_complet.upper()}", fontsize=12, fontweight='bold', pad=15, color='#2c3e50', loc='left')
         fig.tight_layout()
         
         chemin_image = "meteo_du_jour.png"
         plt.savefig(chemin_image, bbox_inches='tight')
         plt.close()
 
-        # 3. Message et envoi Telegram
-        max_temp = max(temperatures_moyennes)
-        min_temp = min(temperatures_moyennes)
-        global_rain = "Risque de pluie à prévoir 🌧️" if max(probas_pluie) > 30 else "Traditionnelle journée sèche ☀️"
+        # 3. Envoi Telegram
+        max_temp = max(temperatures)
+        min_temp = min(temperatures)
+        global_rain = "Risque de pluie à prévoir 🌧️" if max(probas_pluie) > 30 else "Journée globalement sèche ☀️"
         
         texte_telegram = (
-            f"📊 CONSENSUS METEO - {nom_complet}\n\n"
+            f"📊 METEO DU JOUR - {nom_complet}\n\n"
             f"🌡️ Températures : Min {round(min_temp,1)}°C / Max {round(max_temp,1)}°C\n"
             f"☁️ Tendance : {global_rain}\n\n"
-            f"Découvre ton graphique horaire multi-modèles ci-dessous !"
+            f"Découvre ton graphique horaire ci-dessous !"
         )
 
         url_telegram = f"https://api.telegram.org/bot{telegram_token}/sendPhoto"
@@ -150,7 +131,7 @@ def generer_et_envoyer_meteo(ville: str, telegram_token: str, telegram_chat_id: 
             print(f"👉 Statut Telegram : {response.status_code} - {response.text}")
             
         os.remove(chemin_image)
-        print("✅ Script multi-modèles terminé avec succès !")
+        print("✅ Script météo classique terminé avec succès !")
         
     except Exception as e:
         print(f"❌ Erreur générale : {str(e)}")
