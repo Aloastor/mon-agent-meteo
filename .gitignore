@@ -1,0 +1,9 @@
+# Ignorer les fichiers temporaires de Python
+__pycache__/
+*.pyc
+
+# Ignorer les images générées localement lors de tes tests
+*.png
+
+# Ignorer les fichiers d'environnement locaux si tu en utilises
+.env
